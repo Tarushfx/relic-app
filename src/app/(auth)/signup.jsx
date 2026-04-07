@@ -91,7 +91,11 @@ export default function SignUpScreen() {
           placeholderText="Confirm Password"
           secureTextEntry
         />
-        <SubmitButton placeholderText="Create Account" marginVertical={20} />
+        <SubmitButton
+          isLoading={false}
+          placeholderText="Create Account"
+          marginVertical={20}
+        />
         <View>
           <Text asChild>
             <Text style={styles.simpleText}>Don't have an account? </Text>

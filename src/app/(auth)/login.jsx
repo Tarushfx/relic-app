@@ -1,6 +1,6 @@
 import { FontAwesome } from "@expo/vector-icons";
 import { Link, Stack } from "expo-router";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AppInput from "../../components/AppInput";
 import SubmitButton from "../../components/SubmitButton";
@@ -10,8 +10,11 @@ import {
   FONT_PRIMARY,
   FONTS,
 } from "../../constants/theme";
+import { useState } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { getAPI } from "../../context/apiClient";
+import { LOGIN_URL } from "../../secrets/routes";
 
-export const CurvedHeaderBg = () => <View style={styles.curvedContainer} />;
 const styles = StyleSheet.create({
   screen: { flex: 1, marginHorizontal: 20 },
   inputContainer: {
@@ -60,6 +63,40 @@ const styles = StyleSheet.create({
   },
 });
 export default function LoginScreen() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const { login } = useAuth();
+  const api = getAPI();
+  // console.log("login button displayed", isLoading, email, password);
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please fill in all fields");
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Call your login endpoint
+      const response = await api.post(LOGIN_URL, { email, password });
+      console.log("Login response", response.data);
+      // Pass the API call to the login function
+      await login(email, password, async () => {
+        return response.data; // Server should return { accessToken, refreshToken, user }
+      });
+
+      // Navigation happens automatically via useAuthStore
+    } catch (error) {
+      console.log("Login error", error);
+      Alert.alert(
+        "Login Failed",
+        error.response?.data?.message || error.message,
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
   return (
     <>
       <Stack.Screen
@@ -76,10 +113,18 @@ export default function LoginScreen() {
         <AppInput
           icon={<FontAwesome name="user" size={24} color="#666" />}
           placeholderText="Email"
+          value={email}
+          onChangeText={setEmail}
+          editable={!isLoading}
+          keyboardType="email-address"
+          autoCapitalize="none"
         />
         <AppInput
           icon={<FontAwesome name="lock" size={24} color="#666" />}
           placeholderText="Password"
+          value={password}
+          onChangeText={setPassword}
+          editable={!isLoading}
           secureTextEntry
         />
         {
@@ -90,7 +135,13 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </Link> */
         }
-        <SubmitButton placeholderText="Login" marginVertical={50} />
+        <SubmitButton
+          placeholderText="Login"
+          isLoading={isLoading}
+          onPress={handleLogin}
+          marginVertical={50}
+          disabled={isLoading}
+        />
         <View>
           <Text asChild>
             <Text style={styles.simpleText}>Don't have an account? </Text>

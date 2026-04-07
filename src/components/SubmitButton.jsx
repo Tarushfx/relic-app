@@ -1,11 +1,25 @@
-import { StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { COLORS, FONTS, APP_INPUT_SIZES as SIZES } from "../constants/theme";
-
-export default function SubmitButton({ placeholderText, ...props }) {
+export default function SubmitButton({
+  isLoading,
+  placeholderText,
+  onPress,
+  ...props
+}) {
   return (
-    <View style={styles.container} {...props}>
-      <Text style={styles.text}>{placeholderText}</Text>
-    </View>
+    <TouchableOpacity style={styles.container} onPress={onPress} {...props}>
+      {isLoading ? (
+        <ActivityIndicator color="#fff" />
+      ) : (
+        <Text style={styles.text}>{placeholderText}</Text>
+      )}
+    </TouchableOpacity>
   );
 }
 
