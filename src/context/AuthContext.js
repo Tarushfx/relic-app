@@ -1,167 +1,174 @@
-import React, {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  useCallback,
-} from "react";
+import React, { createContext, useContext } from "react";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { create } from "zustand";
-import { is } from "../../node_modules/zustand/esm/index";
-import { router } from "expo-router";
 // Token keys for storage
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const USER_KEY = "user";
 
+// SecureStore options for iOS persistence
+const SECURE_STORE_OPTIONS = {
+    keychainAccessible: SecureStore.WHEN_UNLOCKED,
+};
+
 // Create Zustand store for auth state
 export const useAuthStore = create((set, get) => ({
-  accessToken: null,
-  refreshToken: null,
-  user: null,
-  isLoading: true,
-  isAuthenticated: false,
+    accessToken: null,
+    refreshToken: null,
+    user: null,
+    isLoading: true,
+    isAuthenticated: false,
 
-  // Initialize auth state from storage
-  initialize: async () => {
-    try {
-      const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-      const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-      const userStr = await SecureStore.getItemAsync(USER_KEY);
-      const user = userStr ? JSON.parse(userStr) : null;
+    // Initialize auth state from storage
+    initialize: async () => {
+        const { isAuthenticated, isLoading } = get();
+        if (isAuthenticated && !isLoading) return; // Already initialized
 
-      set({
-        accessToken,
-        refreshToken,
-        user,
-        isAuthenticated: !!accessToken && !!refreshToken,
-        isLoading: false,
-      });
-    } catch (error) {
-      console.error("Failed to initialize auth:", error);
-      set({ isLoading: false });
-    }
-  },
+        try {
+            // Small delay for iOS Keychain to initialize after a refresh
+            
+            const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
+            const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY, options);
+            const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY, options);
+            
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            // const userStr = await SecureStore.getItemAsync(USER_KEY, options);
+            const userStr = null;
+            console.log(Platform.OS, "[Auth] Access Token exists:", !!accessToken); // Keep this log for debugging
+            console.log(Platform.OS, "[Auth] Refresh Token exists:", !!refreshToken);
+            // console.log(Platform.OS, "[Auth] User data exists:", !!userStr);
 
-  // Login with email and password
-  login: async (email, password, apiCall) => {
-    try {
-      set({ isLoading: true });
-      const response = await apiCall(email, password);
+            let user = null;
+            if (userStr) {
+                try {
+                    user = JSON.parse(userStr);
+                } catch (parseError) {
+                    await SecureStore.deleteItemAsync(USER_KEY);
+                }
+            }
+            const isAuthenticated = !!accessToken;
 
-      // Handle case where apiCall returns full response or just the data payload
-      const data = response?.data || response;
+            set({
+                accessToken,
+                refreshToken,
+                user,
+                isAuthenticated,
+                isLoading: false,
+            });
+        } catch (error) {
+            console.error("Failed to initialize auth:", error);
+            set({ isLoading: false, isAuthenticated: false });
+        }
+    },
+    
+    // Login with email and password
+    login: async (email, password, apiCall) => {
+        try {
+            set({ isLoading: true });
+            const response = await apiCall(email, password);
 
-      // Fallback for different naming conventions (access/refresh vs accessToken/refreshToken)
-      const accessToken = data?.access || data?.accessToken;
-      const refreshToken = data?.refresh || data?.refreshToken;
-      const user = data?.user;
+            const data = response?.data || response;
+            const accessToken = data?.access || data?.accessToken;
+            const refreshToken = data?.refresh || data?.refreshToken;
+            const user = data?.user || null;
 
-      if (!accessToken || !refreshToken) {
-        throw new Error(
-          "Login failed: Tokens are missing in the server response.",
-        );
-      }
+            if (!accessToken || !refreshToken) {
+                throw new Error(
+                    "Login failed: Tokens are missing in the server response.",
+                );
+            }
 
-      // Store tokens securely
-      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, String(accessToken));
-      await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, String(refreshToken));
-      if (user) await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+            const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
+            await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken, options);
+            await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken, options);
+            if (user) {
+                await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user), options);
+            }
 
-      set({
-        accessToken,
-        refreshToken,
-        user,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      console.log("Login successful, user:", user);
-      return { success: true, user };
-    } catch (error) {
-      set({ isLoading: false });
-      return { success: false, error: error.message };
-    }
-  },
+            console.log("[Auth] Login successful. Access Token stored:", !!accessToken);
 
-  // Refresh access token using refresh token
-  refreshAccessToken: async (apiCall) => {
-    const { refreshToken } = get();
+            set({
+                accessToken,
+                refreshToken,
+                user,
+                isAuthenticated: true,
+                isLoading: false,
+            });
+            return { success: true, user };
+        } catch (error) {
+            set({ isLoading: false });
+            return { success: false, error: error.message };
+        }
+    },
 
-    if (!refreshToken) {
-      return { success: false, error: "No refresh token available" };
-    }
+    // Refresh access token using refresh token
+    refreshAccessToken: async (apiCall) => {
+        const { refreshToken } = get();
 
-    try {
-      const response = await apiCall(refreshToken);
-      const { accessToken, refreshToken: newRefreshToken } = response;
+        if (!refreshToken) {
+            return { success: false, error: "No refresh token available" };
+        }
 
-      // Update tokens
-      await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
-      if (newRefreshToken) {
-        await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefreshToken);
-      }
+        try {
+            const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
+            const response = await apiCall(refreshToken);
+            const { accessToken, refreshToken: newRefreshToken } = response;
 
-      set({
-        accessToken,
-        refreshToken: newRefreshToken || refreshToken,
-      });
+            await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken, options);
+            if (newRefreshToken) {
+                await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefreshToken, options);
+            }
 
-      return { success: true, accessToken };
-    } catch (error) {
-      console.error("Token refresh failed:", error);
-      // If refresh fails, logout user
-      get().logout();
-      return { success: false, error: error.message };
-    }
-  },
+            console.log("[Auth] Token refreshed. New Access Token exists:", !!accessToken);
 
-  // Logout
-  logout: async () => {
-    try {
-        await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-        await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
-        await SecureStore.deleteItemAsync(USER_KEY);
-        set({
-          accessToken: null,
-          refreshToken: null,
-          user: null,
-          isAuthenticated: false,
-          isLoading: false,
-        });
+            set({
+                accessToken,
+                refreshToken: newRefreshToken || refreshToken,
+            });
 
-      const { accessToken, refreshToken, user, isAuthenticated, isLoading } =
-        get();
-      console.log(accessToken, refreshToken, user, isAuthenticated, isLoading);
-      console.log("Logout successful");
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  },
+            return { success: true, accessToken };
+        } catch (error) {
+            get().logout();
+            return { success: false, error: error.message };
+        }
+    },
 
-  // Update user profile
-  setUser: (user) => set({ user }),
+    // Logout
+    logout: async () => {
+        const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
+        try {
+            await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY, options);
+            await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY, options);
+            await SecureStore.deleteItemAsync(USER_KEY, options);
+        } finally {
+            set({
+                accessToken: null,
+                refreshToken: null,
+                user: null,
+                isAuthenticated: false,
+                isLoading: false,
+            });
+        }
+    },
 }));
 
 // Create React Context for backward compatibility
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const authStore = useAuthStore();
+    const authStore = useAuthStore();
 
-  useEffect(() => {
-    authStore.initialize();
-  }, []);
-
-  return (
-    <AuthContext.Provider value={authStore}>{children}</AuthContext.Provider>
-  );
+    return (
+        <AuthContext.Provider value={authStore}>{children}</AuthContext.Provider>
+    );
 };
 
 // Hook to use auth context
 export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error("useAuth must be used within AuthProvider");
-  }
-  return context;
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error("useAuth must be used within AuthProvider");
+    }
+    return context;
 };

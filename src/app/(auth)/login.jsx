@@ -14,6 +14,7 @@ import { useState } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { getAPI } from "../../context/apiClient";
 import { LOGIN_URL } from "../../secrets/routes";
+import { useToast } from "../../utils/toast";
 
 const styles = StyleSheet.create({
   screen: { flex: 1, marginHorizontal: 20 },
@@ -68,10 +69,11 @@ export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const api = getAPI();
+  const { showError } = useToast();
   // console.log("login button displayed", isLoading, email, password);
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields");
+      showError("Validation Error", "Please fill in all fields");
       return;
     }
 
@@ -89,10 +91,7 @@ export default function LoginScreen() {
       // Navigation happens automatically via useAuthStore
     } catch (error) {
       console.log("Login error", error);
-      Alert.alert(
-        "Login Failed",
-        error.response?.data?.message || error.message,
-      );
+      showError("Login Failed", error.response?.data?.message || error.message);
     } finally {
       setIsLoading(false);
     }

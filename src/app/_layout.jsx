@@ -1,31 +1,50 @@
 import { useEffect } from "react";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import { AuthProvider, useAuthStore } from "../context/AuthContext";
 import { initializeAPI } from "../context/apiClient";
-import { ActivityIndicator, View } from "react-native";
+import { View } from "react-native";
 import { BACKEND_BASE_URL } from "../secrets/routes";
+import Toast from "react-native-toast-message";
+import { toastMessageConfig } from "../components/CustomToast";
+import * as SplashScreen from "expo-splash-screen";
+import SplashView from "../components/SplashView";
 
 // Initialize API with your base URL
 initializeAPI(BACKEND_BASE_URL);
-function RootLayoutContent() {
-  const { isLoading, isAuthenticated } = useAuthStore();
 
+// Prevent the splash screen from auto-hiding while the app initializes
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+function RootLayoutContent() {
+  const { isLoading, isAuthenticated, initialize } = useAuthStore();
+
+  useEffect(() => {
+    async function prepare() {
+      // 1. Start your auth check
+      await initialize();
+      // 2. The millisecond initialization is done, hide the native blue screen
+      // This transition is much smoother than swapping two images
+      await SplashScreen.hideAsync();
+    }
+    prepare();
+  }, []);
+
+  // While initializing, show your custom animated SplashView
   if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <SplashView />;
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {isAuthenticated ? (
-        <Stack.Screen name="(home)" />
-      ) : (
-        <Stack.Screen name="(auth)" />
-      )}
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }}>
+        {isAuthenticated ? (
+          <Stack.Screen name="(home)" />
+        ) : (
+          <Stack.Screen name="(auth)" />
+        )}
+      </Stack>
+      <Toast config={toastMessageConfig} />
+    </View>
   );
 }
 
