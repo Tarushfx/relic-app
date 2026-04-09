@@ -1,37 +1,39 @@
 import { useEffect } from "react";
 import { Stack } from "expo-router";
-import { AuthProvider, useAuthStore } from "../context/AuthContext";
+import { AuthProvider, useCustomAuthStore } from "../context/AuthContext";
 import { initializeAPI } from "../context/apiClient";
 import { View } from "react-native";
 import { BACKEND_BASE_URL } from "../secrets/routes";
 import Toast from "react-native-toast-message";
 import { toastMessageConfig } from "../components/CustomToast";
 import * as SplashScreen from "expo-splash-screen";
-import SplashView from "../components/SplashView";
 
-// Initialize API with your base URL
+// 1. Prevent native splash from auto-hiding immediately
+SplashScreen.preventAutoHideAsync().catch(() => {
+  /* optional error handling */
+});
+
 initializeAPI(BACKEND_BASE_URL);
 
-// Prevent the splash screen from auto-hiding while the app initializes
-SplashScreen.preventAutoHideAsync().catch(() => {});
-
 function RootLayoutContent() {
-  const { isLoading, isAuthenticated, initialize } = useAuthStore();
+  const { isLoading, isAuthenticated, initialize } = useCustomAuthStore();
 
   useEffect(() => {
-    async function prepare() {
-      // 1. Start your auth check
-      await initialize();
-      // 2. The millisecond initialization is done, hide the native blue screen
-      // This transition is much smoother than swapping two images
-      await SplashScreen.hideAsync();
-    }
-    prepare();
+    // 2. Fetch token from AsyncStorage
+    initialize();
   }, []);
 
-  // While initializing, show your custom animated SplashView
+  useEffect(() => {
+    // 3. Only hide the splash screen when hydration is done
+    if (!isLoading) {
+      SplashScreen.hideAsync();
+    }
+  }, [isLoading]);
+
+  // 4. Return null while loading so the "Index" or "Auth" screens
+  // don't try to render behind the splash screen prematurely.
   if (isLoading) {
-    return <SplashView />;
+    return null;
   }
 
   return (

@@ -1,8 +1,16 @@
+// app/index.jsx
 import { Redirect } from "expo-router";
+import { useCustomAuthStore } from "../context/AuthContext";
 
-const App = () => {
-  // return <Redirect href="login" />;
-  return <Redirect href="/(auth)/login" />;
-};
+export default function Index() {
+  const { isAuthenticated, isLoading } = useCustomAuthStore();
 
-export default App;
+  // Wait for the splash/hydration to finish
+  if (isLoading) return null;
+
+  if (isAuthenticated) {
+    return <Redirect href="/home" />;
+  } else {
+    return <Redirect href="/(auth)/login" />;
+  }
+}

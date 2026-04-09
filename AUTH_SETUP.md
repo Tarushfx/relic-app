@@ -193,9 +193,9 @@ All routes are automatically protected based on `isAuthenticated`:
 ### Check Current User
 
 ```javascript
-import { useAuthStore } from "./context/AuthContext";
+import { useCustomAuthStore } from "./context/AuthContext";
 
-const { user, accessToken, refreshToken } = useAuthStore();
+const { user, accessToken, refreshToken } = useCustomAuthStore();
 console.log("Current user:", user);
 ```
 

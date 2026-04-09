@@ -11,7 +11,6 @@ export default function SplashView() {
         style={styles.gradient}
       >
         <View style={styles.content}>
-          {/* You can replace this with your app logo */}
           <View style={styles.logoPlaceholder}>
             <Text style={styles.logoText}>R</Text>
           </View>

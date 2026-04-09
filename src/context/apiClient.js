@@ -1,5 +1,5 @@
 import axios from "axios";
-import { useAuthStore } from "./AuthContext";
+import { useCustomAuthStore } from "./AuthContext";
 
 let api = null;
 
@@ -12,7 +12,7 @@ export const initializeAPI = (baseURL) => {
   // Request interceptor - attach access token
   api.interceptors.request.use(
     (config) => {
-      const { accessToken } = useAuthStore.getState();
+      const { accessToken } = useCustomAuthStore.getState();
 
       if (accessToken) {
         config.headers.Authorization = `Bearer ${accessToken}`;
@@ -39,7 +39,7 @@ export const initializeAPI = (baseURL) => {
     //     originalRequest._retry = true;
 
     //     try {
-    //       const state = useAuthStore.getState();
+    //       const state = useCustomAuthStore.getState();
     //       const { refreshToken } = state;
 
     //       if (!refreshToken) {
@@ -65,7 +65,7 @@ export const initializeAPI = (baseURL) => {
     //       originalRequest.headers.Authorization = `Bearer ${accessToken}`;
     //       return api(originalRequest);
     //     } catch (refreshError) {
-    //       useAuthStore.getState().logout();
+    //       useCustomAuthStore.getState().logout();
     //       return Promise.reject(refreshError);
     //     }
     //   }

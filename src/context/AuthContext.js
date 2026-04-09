@@ -1,19 +1,18 @@
 import React, { createContext, useContext } from "react";
-import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 import { create } from "zustand";
+import axios from "axios"; // Required for direct refresh call during initialization
+import { BACKEND_BASE_URL } from "../secrets/routes"; // Required for direct refresh call during initialization
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 // Token keys for storage
 const ACCESS_TOKEN_KEY = "access_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
 const USER_KEY = "user";
 
-// SecureStore options for iOS persistence
-const SECURE_STORE_OPTIONS = {
-    keychainAccessible: SecureStore.WHEN_UNLOCKED,
-};
 
 // Create Zustand store for auth state
-export const useAuthStore = create((set, get) => ({
+export const useCustomAuthStore = create((set, get) => ({
     accessToken: null,
     refreshToken: null,
     user: null,
@@ -22,29 +21,25 @@ export const useAuthStore = create((set, get) => ({
 
     // Initialize auth state from storage
     initialize: async () => {
-        const { isAuthenticated, isLoading } = get();
-        if (isAuthenticated && !isLoading) return; // Already initialized
+        const { isLoading } = get();
+        if (!isLoading) return; // Already initialized
 
         try {
-            // Small delay for iOS Keychain to initialize after a refresh
-            
-            const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
-            const accessToken = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY, options);
-            const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY, options);
-            
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            // const userStr = await SecureStore.getItemAsync(USER_KEY, options);
-            const userStr = null;
-            console.log(Platform.OS, "[Auth] Access Token exists:", !!accessToken); // Keep this log for debugging
-            console.log(Platform.OS, "[Auth] Refresh Token exists:", !!refreshToken);
+
+            const accessToken = await AsyncStorage.getItem(ACCESS_TOKEN_KEY);
+            const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+
+            console.log(Platform.OS, "[Auth] Access Token exists:", accessToken); // Keep this log for debugging
+            console.log(Platform.OS, "[Auth] Refresh Token exists:", refreshToken);
             // console.log(Platform.OS, "[Auth] User data exists:", !!userStr);
 
             let user = null;
+            const userStr = null;
             if (userStr) {
                 try {
                     user = JSON.parse(userStr);
                 } catch (parseError) {
-                    await SecureStore.deleteItemAsync(USER_KEY);
+                    await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
                 }
             }
             const isAuthenticated = !!accessToken;
@@ -53,15 +48,17 @@ export const useAuthStore = create((set, get) => ({
                 accessToken,
                 refreshToken,
                 user,
-                isAuthenticated,
-                isLoading: false,
+                isAuthenticated
             });
+            set({
+                isLoading: false,
+            })
         } catch (error) {
             console.error("Failed to initialize auth:", error);
             set({ isLoading: false, isAuthenticated: false });
         }
     },
-    
+
     // Login with email and password
     login: async (email, password, apiCall) => {
         try {
@@ -78,15 +75,16 @@ export const useAuthStore = create((set, get) => ({
                     "Login failed: Tokens are missing in the server response.",
                 );
             }
-
-            const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
-            await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken, options);
-            await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken, options);
+            await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+            await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
             if (user) {
-                await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user), options);
+                await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
             }
 
-            console.log("[Auth] Login successful. Access Token stored:", !!accessToken);
+            console.log(
+                "[Auth] Login successful. Access Token in Async storage:",
+                !!accessToken,
+            );
 
             set({
                 accessToken,
@@ -97,38 +95,57 @@ export const useAuthStore = create((set, get) => ({
             });
             return { success: true, user };
         } catch (error) {
-            set({ isLoading: false });
+            set({
+                isLoading: false,
+                accessToken: null,
+                refreshToken: null,
+                user: null,
+                isAuthenticated: false,
+            });
             return { success: false, error: error.message };
         }
     },
 
     // Refresh access token using refresh token
-    refreshAccessToken: async (apiCall) => {
-        const { refreshToken } = get();
+    refreshAccessToken: async (getNewTokensFunction) => {
+        // Renamed apiCall for clarity
+        const { refreshToken: currentRefreshToken } = get(); // Get current refreshToken from Zustand state
 
-        if (!refreshToken) {
+        if (!currentRefreshToken) {
+            get().logout(); // No refresh token, force logout
             return { success: false, error: "No refresh token available" };
         }
 
         try {
-            const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
-            const response = await apiCall(refreshToken);
-            const { accessToken, refreshToken: newRefreshToken } = response;
+            // This function is expected to make the API call and return { accessToken, refreshToken }
+            const { accessToken, refreshToken: newRefreshToken } =
+                await getNewTokensFunction(currentRefreshToken);
 
-            await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken, options);
-            if (newRefreshToken) {
-                await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, newRefreshToken, options);
+            if (!accessToken) {
+                throw new Error("Refresh failed: No new access token received.");
             }
 
-            console.log("[Auth] Token refreshed. New Access Token exists:", !!accessToken);
+            if (newRefreshToken && newRefreshToken !== currentRefreshToken) {
+                await AsyncStorage.setItem(
+                    REFRESH_TOKEN_KEY,
+                    newRefreshToken,
+                );
+            }
+
+            console.log(
+                "[Auth] Token refreshed. New Access Token in RAM:",
+                !!accessToken,
+            );
 
             set({
                 accessToken,
-                refreshToken: newRefreshToken || refreshToken,
+                refreshToken: newRefreshToken || currentRefreshToken,
+                isAuthenticated: true, // Ensure authenticated after successful refresh
             });
 
             return { success: true, accessToken };
         } catch (error) {
+            console.error("Failed to refresh token:", error);
             get().logout();
             return { success: false, error: error.message };
         }
@@ -136,11 +153,9 @@ export const useAuthStore = create((set, get) => ({
 
     // Logout
     logout: async () => {
-        const options = Platform.OS === "ios" ? SECURE_STORE_OPTIONS : {};
         try {
-            await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY, options);
-            await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY, options);
-            await SecureStore.deleteItemAsync(USER_KEY, options);
+            await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+            await AsyncStorage.removeItem(USER_KEY);
         } finally {
             set({
                 accessToken: null,
@@ -157,7 +172,7 @@ export const useAuthStore = create((set, get) => ({
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-    const authStore = useAuthStore();
+    const authStore = useCustomAuthStore();
 
     return (
         <AuthContext.Provider value={authStore}>{children}</AuthContext.Provider>

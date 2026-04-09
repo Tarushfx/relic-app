@@ -88,7 +88,7 @@ export default function LoginScreen() {
         return response.data; // Server should return { accessToken, refreshToken, user }
       });
 
-      // Navigation happens automatically via useAuthStore
+      // Navigation happens automatically via useCustomAuthStore
     } catch (error) {
       console.log("Login error", error);
       showError("Login Failed", error.response?.data?.message || error.message);

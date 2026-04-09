@@ -5,7 +5,7 @@ import { useToast } from "../../utils/toast";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { logout, debugSecureStore } = useAuth();
+  const { logout } = useAuth();
   const { showSuccess, showInfo } = useToast();
 
   const handleLogout = async () => {
@@ -19,15 +19,6 @@ export default function HomeScreen() {
 
   const handleInfoToast = () => {
     showInfo("Info", "This is an informational message.");
-  };
-
-  const handleDebugStore = async () => {
-    const debugInfo = await debugSecureStore();
-    console.log("Debug info:", debugInfo);
-    showInfo(
-      "Debug",
-      `Auth: ${debugInfo?.isAuthenticated}, Tokens: ${debugInfo?.accessToken}/${debugInfo?.refreshToken}`,
-    );
   };
 
   return (
@@ -44,8 +35,6 @@ export default function HomeScreen() {
         title="View Toast Demo"
         onPress={() => router.push("/toast-demo")}
       />
-      <View style={{ height: 20 }} />
-      <Button title="Debug Secure Store" onPress={handleDebugStore} />
       <View style={{ height: 20 }} />
       <Button title="Logout" onPress={handleLogout} />
     </View>
