@@ -1,57 +1,55 @@
-import { useEffect } from "react";
-import { Stack } from "expo-router";
-import { AuthProvider, useAuthStore } from "../context/AuthContext";
-import { initializeAPI } from "../context/apiClient";
-import { View } from "react-native";
-import { BACKEND_BASE_URL } from "../secrets/routes";
-import Toast from "react-native-toast-message";
-import { toastMessageConfig } from "../components/CustomToast";
-import * as SplashScreen from "expo-splash-screen";
-import SplashView from "../components/SplashView";
+import { useEffect } from 'react'
+import { Stack } from 'expo-router'
+import { AuthProvider, useCustomAuthStore } from '../context/AuthContext'
+import { initializeAPI } from '../context/apiClient'
+import { View } from 'react-native'
+import { BACKEND_BASE_URL } from '../secrets/routes'
+import Toast from 'react-native-toast-message'
+import { toastMessageConfig } from '../components/CustomToast'
+import * as SplashScreen from 'expo-splash-screen'
 
-// Initialize API with your base URL
-initializeAPI(BACKEND_BASE_URL);
+// 1. Prevent native splash from auto-hiding immediately
+SplashScreen.preventAutoHideAsync().catch(() => {
+    /* optional error handling */
+})
 
-// Prevent the splash screen from auto-hiding while the app initializes
-SplashScreen.preventAutoHideAsync().catch(() => {});
+initializeAPI(BACKEND_BASE_URL)
 
 function RootLayoutContent() {
-  const { isLoading, isAuthenticated, initialize } = useAuthStore();
+    const { isLoading, isAuthenticated, initialize } = useCustomAuthStore()
 
-  useEffect(() => {
-    async function prepare() {
-      // 1. Start your auth check
-      await initialize();
-      // 2. The millisecond initialization is done, hide the native blue screen
-      // This transition is much smoother than swapping two images
-      await SplashScreen.hideAsync();
+    useEffect(() => {
+        // 2. Fetch token from AsyncStorage
+        initialize()
+    }, [])
+
+    useEffect(() => {
+        // 3. Only hide the splash screen when hydration is done
+        if (!isLoading) {
+            SplashScreen.hideAsync()
+        }
+    }, [isLoading])
+
+    // 4. Return null while loading so the "Index" or "Auth" screens
+    // don't try to render behind the splash screen prematurely.
+    if (isLoading) {
+        return null
     }
-    prepare();
-  }, []);
 
-  // While initializing, show your custom animated SplashView
-  if (isLoading) {
-    return <SplashView />;
-  }
-
-  return (
-    <View style={{ flex: 1 }}>
-      <Stack screenOptions={{ headerShown: false }}>
-        {isAuthenticated ? (
-          <Stack.Screen name="(home)" />
-        ) : (
-          <Stack.Screen name="(auth)" />
-        )}
-      </Stack>
-      <Toast config={toastMessageConfig} />
-    </View>
-  );
+    return (
+        <View style={{ flex: 1 }}>
+            <Stack screenOptions={{ headerShown: false }}>
+                {isAuthenticated ? <Stack.Screen name="(home)" /> : <Stack.Screen name="(auth)" />}
+            </Stack>
+            <Toast config={toastMessageConfig} />
+        </View>
+    )
 }
 
 export default function RootLayout() {
-  return (
-    <AuthProvider>
-      <RootLayoutContent />
-    </AuthProvider>
-  );
+    return (
+        <AuthProvider>
+            <RootLayoutContent />
+        </AuthProvider>
+    )
 }

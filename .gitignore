@@ -45,3 +45,5 @@ app-example
 .idea/
 .vscode/
 temp/
+.prettierrc
+.aiexclude
