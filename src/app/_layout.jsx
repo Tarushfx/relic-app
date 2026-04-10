@@ -10,50 +10,50 @@ import * as SplashScreen from "expo-splash-screen";
 
 // 1. Prevent native splash from auto-hiding immediately
 SplashScreen.preventAutoHideAsync().catch(() => {
-    /* optional error handling */
+	/* optional error handling */
 });
 
 initializeAPI(BACKEND_BASE_URL);
 
 function RootLayoutContent() {
-    const { isLoading, isAuthenticated, initialize } = useCustomAuthStore();
+	const { isLoading, isAuthenticated, initialize } = useCustomAuthStore();
 
-    useEffect(() => {
-        // 2. Fetch token from AsyncStorage
-        initialize();
-    }, []);
+	useEffect(() => {
+		// 2. Fetch token from AsyncStorage
+		initialize();
+	}, []);
 
-    useEffect(() => {
-        // 3. Only hide the splash screen when hydration is done
-        if (!isLoading) {
-            SplashScreen.hideAsync();
-        }
-    }, [isLoading]);
+	useEffect(() => {
+		// 3. Only hide the splash screen when hydration is done
+		if (!isLoading) {
+			SplashScreen.hideAsync();
+		}
+	}, [isLoading]);
 
-    // 4. Return null while loading so the "Index" or "Auth" screens
-    // don't try to render behind the splash screen prematurely.
-    if (isLoading) {
-        return null;
-    }
+	// 4. Return null while loading so the "Index" or "Auth" screens
+	// don't try to render behind the splash screen prematurely.
+	if (isLoading) {
+		return null;
+	}
 
-    return (
-        <View style={{ flex: 1 }}>
-            <Stack screenOptions={{ headerShown: false }}>
-                {isAuthenticated ? (
-                    <Stack.Screen name="(home)" />
-                ) : (
-                    <Stack.Screen name="(auth)" />
-                )}
-            </Stack>
-            <Toast config={toastMessageConfig} />
-        </View>
-    );
+	return (
+		<View style={{ flex: 1 }}>
+			<Stack screenOptions={{ headerShown: false }}>
+				{isAuthenticated ? (
+					<Stack.Screen name="(home)" />
+				) : (
+					<Stack.Screen name="(auth)" />
+				)}
+			</Stack>
+			<Toast config={toastMessageConfig} />
+		</View>
+	);
 }
 
 export default function RootLayout() {
-    return (
-        <AuthProvider>
-            <RootLayoutContent />
-        </AuthProvider>
-    );
+	return (
+		<AuthProvider>
+			<RootLayoutContent />
+		</AuthProvider>
+	);
 }
