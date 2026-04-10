@@ -1,39 +1,43 @@
-import axios from 'axios'
-import { useCustomAuthStore } from './AuthContext'
+import axios from "axios";
+import { useCustomAuthStore } from "./AuthContext";
 
-let api = null
+let api = null;
 
-export const initializeAPI = baseURL => {
+export const initializeAPI = (baseURL) => {
     api = axios.create({
         baseURL,
         timeout: 10000,
-    })
+    });
 
     // Request interceptor - attach access token
     api.interceptors.request.use(
-        config => {
-            const { accessToken } = useCustomAuthStore.getState()
+        (config) => {
+            const { accessToken } = useCustomAuthStore.getState();
 
             if (accessToken) {
-                config.headers.Authorization = `Bearer ${accessToken}`
+                config.headers.Authorization = `Bearer ${accessToken}`;
             }
-            config.headers['Content-Type'] = 'application/json'
-            config.headers['Accept'] = 'application/json'
-            console.log('API Request:', config.method.toUpperCase(), config.url)
-            return config
+            config.headers["Content-Type"] = "application/json";
+            config.headers["Accept"] = "application/json";
+            console.log(
+                "API Request:",
+                config.method.toUpperCase(),
+                config.url,
+            );
+            return config;
         },
-        error => {
-            console.log('API Request Error:', error)
-            return Promise.reject(error)
+        (error) => {
+            console.log("API Request Error:", error);
+            return Promise.reject(error);
         },
-    )
+    );
 
     // Response interceptor - handle token refresh
     api.interceptors.response.use(
-        response => response,
-        async error => {
-            const originalRequest = error.config
-            console.log('API Response Error:', error)
+        (response) => response,
+        async (error) => {
+            const originalRequest = error.config;
+            console.log("API Response Error:", error);
             // If 401 and not already retried
             //   if (error.response?.status === 401 && !originalRequest._retry) {
             //     originalRequest._retry = true;
@@ -69,16 +73,16 @@ export const initializeAPI = baseURL => {
             //       return Promise.reject(refreshError);
             //     }
             //   }
-            return Promise.reject(error)
+            return Promise.reject(error);
         },
-    )
+    );
 
-    return api
-}
+    return api;
+};
 
 export const getAPI = () => {
     if (!api) {
-        throw new Error('API not initialized. Call initializeAPI first.')
+        throw new Error("API not initialized. Call initializeAPI first.");
     }
-    return api
-}
+    return api;
+};

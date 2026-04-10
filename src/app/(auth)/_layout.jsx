@@ -1,4 +1,4 @@
-import { Stack } from 'expo-router'
+import { Stack } from "expo-router";
 
 export default function AuthLayout() {
     // This layout manages the screens inside the (auth) folder
@@ -7,5 +7,5 @@ export default function AuthLayout() {
             <Stack.Screen name="login" />
             <Stack.Screen name="signup" />
         </Stack>
-    )
+    );
 }

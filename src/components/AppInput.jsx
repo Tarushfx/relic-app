@@ -1,5 +1,5 @@
-import { StyleSheet, TextInput, View } from 'react-native'
-import { COLORS, FONTS, APP_INPUT_SIZES as SIZES } from '../constants/theme'
+import { StyleSheet, TextInput, View } from "react-native";
+import { COLORS, FONTS, APP_INPUT_SIZES as SIZES } from "../constants/theme";
 
 export default function AppInput({ icon, placeholderText, ...props }) {
     return (
@@ -12,13 +12,13 @@ export default function AppInput({ icon, placeholderText, ...props }) {
                 {...props}
             />
         </View>
-    )
+    );
 }
 
 const styles = StyleSheet.create({
     container: {
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         backgroundColor: COLORS.background,
         borderRadius: SIZES.radius,
         paddingHorizontal: SIZES.padding,
@@ -34,4 +34,4 @@ const styles = StyleSheet.create({
         marginLeft: SIZES.margin,
         fontFamily: FONTS.button,
     },
-})
+});
