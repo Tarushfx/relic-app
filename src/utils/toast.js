@@ -55,7 +55,7 @@ export const useToast = () => {
 			text1: title,
 			text2: message,
 			position: "top",
-			visibilityTime: 40000,
+			visibilityTime: 3000,
 			autoHide: true,
 			topOffset: 50,
 			bottomOffset: 40,
