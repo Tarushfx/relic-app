@@ -4,13 +4,65 @@ import { create } from "zustand";
 import axios from "axios"; // Required for direct refresh call during initialization
 import { BACKEND_BASE_URL } from "../secrets/routes"; // Required for direct refresh call during initialization
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { JwtPayload } from "../../node_modules/jwt-decode/build/esm/index.d";
 
-// Token keys for storage
-const ACCESS_TOKEN_KEY = "access_token";
-const REFRESH_TOKEN_KEY = "refresh_token";
-const USER_KEY = "user";
+import {
+	ACCESS_TOKEN_KEY,
+	REFRESH_TOKEN_KEY,
+	USER_KEY,
+} from "../constants/auth";
+import { router } from "expo-router";
 
-// Create Zustand store for auth state
+// Helper functions
+
+export const decodeJWT = (token) => {
+	// 1. Guard Clause: Check if token exists and is a string
+	if (!token || typeof token !== "string") {
+		return null;
+	}
+
+	try {
+		const parts = token.split(".");
+
+		// 2. Structure Check: A valid JWT must have 3 parts
+		if (parts.length !== 3) {
+			console.warn("Invalid JWT structure");
+			return null;
+		}
+
+		const base64Url = parts[1];
+		const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+		const jsonPayload = decodeURIComponent(
+			atob(base64)
+				.split("")
+				.map(
+					(c) =>
+						"%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2),
+				)
+				.join(""),
+		);
+
+		return JSON.parse(jsonPayload);
+	} catch (e) {
+		console.error("JWT Decode Error:", e);
+		return null;
+	}
+};
+export const isJWTTokenExpired = (exp) => {
+	if (!exp) return true; // Treat as expired if no exp field exists
+	const currentTime = Math.floor(Date.now() / 1000); // Convert ms to seconds
+	return exp < currentTime;
+};
+export const isTokenExpired = (token) => {
+	if (!token) return true;
+	const decoded = decodeJWT(token);
+	if (!decoded || !decoded.exp) return true;
+	return isJWTTokenExpired(decoded.exp);
+};
+
+const logoutSuccess = () => {
+	router.replace("/login");
+};
 export const useCustomAuthStore = create((set, get) => ({
 	accessToken: null,
 	refreshToken: null,
@@ -30,26 +82,25 @@ export const useCustomAuthStore = create((set, get) => ({
 			console.log(
 				Platform.OS,
 				"[Auth] Access Token exists:",
-				accessToken,
-			); // Keep this log for debugging
+				!!accessToken,
+			);
 			console.log(
 				Platform.OS,
 				"[Auth] Refresh Token exists:",
-				refreshToken,
+				!!refreshToken,
 			);
-			// console.log(Platform.OS, "[Auth] User data exists:", !!userStr);
 
-			let user = null;
+			const user = null;
 			const userStr = null;
 			if (userStr) {
 				try {
 					user = JSON.parse(userStr);
 				} catch (parseError) {
-					await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
+					await AsyncStorage.removeItem(USER_KEY);
 				}
 			}
-			const isAuthenticated = !!accessToken;
-
+			const isAuthenticated =
+				!!refreshToken && !isTokenExpired(refreshToken);
 			set({
 				accessToken,
 				refreshToken,
@@ -74,19 +125,22 @@ export const useCustomAuthStore = create((set, get) => ({
 			const data = response?.data || response;
 			const accessToken = data?.access || data?.accessToken;
 			const refreshToken = data?.refresh || data?.refreshToken;
-			const user = data?.user || null;
 
 			if (!accessToken || !refreshToken) {
-				throw new Error(
-					"Login failed: Tokens are missing in the server response.",
-				);
+				throw new Error("Login failed: Tokens are missing");
+			}
+			if (isTokenExpired(accessToken)) {
+				throw new Error("Login failed: Access token is expired.");
+			}
+			if (isTokenExpired(refreshToken)) {
+				throw new Error("Login failed: Refresh token is expired.");
 			}
 			await AsyncStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
 			await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+			const user = null;
 			if (user) {
-				await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+				await AsyncStorage.setItem(USER_KEY, user);
 			}
-
 			console.log(
 				"[Auth] Login successful. Access Token in Async storage:",
 				!!accessToken,
@@ -99,8 +153,9 @@ export const useCustomAuthStore = create((set, get) => ({
 				isAuthenticated: true,
 				isLoading: false,
 			});
-			return { success: true, user };
+			return { success: true };
 		} catch (error) {
+			console.log(error);
 			set({
 				isLoading: false,
 				accessToken: null,
@@ -108,6 +163,7 @@ export const useCustomAuthStore = create((set, get) => ({
 				user: null,
 				isAuthenticated: false,
 			});
+
 			return { success: false, error: error.message };
 		}
 	},
@@ -160,7 +216,10 @@ export const useCustomAuthStore = create((set, get) => ({
 	logout: async () => {
 		try {
 			await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
-			await AsyncStorage.removeItem(USER_KEY);
+			await AsyncStorage.removeItem(ACCESS_TOKEN_KEY);
+			console.log("[Auth] Logged out successfully");
+		} catch (error) {
+			console.log("[Auth] Failed to log out:", error);
 		} finally {
 			set({
 				accessToken: null,
@@ -169,27 +228,7 @@ export const useCustomAuthStore = create((set, get) => ({
 				isAuthenticated: false,
 				isLoading: false,
 			});
-		}
-	},
-	decodeJWT: (token) => {
-		try {
-			// Split the token (Header.Payload.Signature) and take the Payload (index 1)
-			const base64Url = token.split(".")[1];
-			const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-			const jsonPayload = decodeURIComponent(
-				atob(base64)
-					.split("")
-					.map(
-						(c) =>
-							"%" +
-							("00" + c.charCodeAt(0).toString(16)).slice(-2),
-					)
-					.join(""),
-			);
-
-			return JSON.parse(jsonPayload);
-		} catch (e) {
-			return null;
+			logoutSuccess();
 		}
 	},
 }));

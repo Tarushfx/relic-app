@@ -7,6 +7,7 @@ import { BACKEND_BASE_URL } from "../secrets/routes";
 import Toast from "react-native-toast-message";
 import { toastMessageConfig } from "../components/CustomToast";
 import * as SplashScreen from "expo-splash-screen";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // 1. Prevent native splash from auto-hiding immediately
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -40,7 +41,7 @@ function RootLayoutContent() {
 		<View style={{ flex: 1 }}>
 			<Stack screenOptions={{ headerShown: false }}>
 				{isAuthenticated ? (
-					<Stack.Screen name="(home)" />
+					<Stack.Screen name="home" />
 				) : (
 					<Stack.Screen name="(auth)" />
 				)}
@@ -49,11 +50,13 @@ function RootLayoutContent() {
 		</View>
 	);
 }
-
+const queryClient = new QueryClient();
 export default function RootLayout() {
 	return (
-		<AuthProvider>
-			<RootLayoutContent />
-		</AuthProvider>
+		<QueryClientProvider client={queryClient}>
+			<AuthProvider>
+				<RootLayoutContent />
+			</AuthProvider>
+		</QueryClientProvider>
 	);
 }
